@@ -3,7 +3,7 @@ module Text.Parser.Classes where
 import Control.Applicative (pure)
 import Control.Bind (bind)
 import Control.Monad (class Monad)
-import Control.Monad.Reader.Trans (ReaderT(ReaderT), mapReaderT)
+import Control.Monad.Reader.Trans (ReaderT, mapReaderT)
 import Control.Monad.RWS.Trans (RWST(RWST), RWSResult(RWSResult), mapRWST)
 import Control.Monad.State.Trans (StateT(StateT), mapStateT)
 import Control.Monad.Trans.Class (lift)
@@ -35,14 +35,14 @@ instance parsingParser :: (P.StringLike s, Monad m)
 instance parsingReaderT :: (Parsing m, Monad m)
                         => Parsing (ReaderT e m) where
   try = mapReaderT try
-  withErrorMessage (ReaderT m) l = ReaderT $ \ e -> withErrorMessage (m e) l
+  withErrorMessage r l = mapReaderT (flip withErrorMessage l) r
   eof = lift eof
   notFollowedBy = mapReaderT notFollowedBy
 
 instance parsingRWST :: (Parsing m, Monad m, Monoid w)
                      => Parsing (RWST r w s m) where
   try = mapRWST try
-  withErrorMessage (RWST m) l = RWST \ r s -> withErrorMessage (m r s) l
+  withErrorMessage r l = mapRWST (flip withErrorMessage l) r
   eof = lift eof
   notFollowedBy (RWST m) = RWST \ r s -> do
     x <- notFollowedBy $ (\(RWSResult _ a _) -> a) <$> m r s
@@ -50,7 +50,7 @@ instance parsingRWST :: (Parsing m, Monad m, Monoid w)
 
 instance parsingStateT :: (Parsing m, Monad m) => Parsing (StateT s m) where
   try = mapStateT try
-  withErrorMessage (StateT m) l = StateT $ \s -> withErrorMessage (m s) l
+  withErrorMessage s l = mapStateT (flip withErrorMessage l) s
   eof = lift eof
   notFollowedBy (StateT m) = StateT \ s -> do
     notFollowedBy $ fst <$> m s
@@ -59,7 +59,7 @@ instance parsingStateT :: (Parsing m, Monad m) => Parsing (StateT s m) where
 instance parsingWriterT :: (Parsing m, Monad m, Monoid w)
                         => Parsing (WriterT w m) where
   try = mapWriterT try
-  withErrorMessage (WriterT m) l = WriterT $ withErrorMessage m l
+  withErrorMessage w l = mapWriterT (flip withErrorMessage l) w
   eof = lift eof
   notFollowedBy (WriterT m) = WriterT do
     x <- notFollowedBy $ fst <$> m
@@ -122,7 +122,7 @@ instance lookAheadParsingRWST :: (LookAheadParsing m, Monad m, Monoid w)
   lookAhead = mapRWST lookAhead
 
 instance lookAheadParsingStateT :: (LookAheadParsing m, Monad m)
-                                 => LookAheadParsing (StateT e m) where
+                                => LookAheadParsing (StateT e m) where
   lookAhead = mapStateT lookAhead
 
 instance lookAheadParsingWriterT :: (LookAheadParsing m, Monad m, Monoid w)
