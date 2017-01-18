@@ -15,7 +15,6 @@ import Data.Function
 import Data.Functor ((<$>))
 import Data.Monoid (class Monoid, mempty)
 import Data.Semigroup ((<>))
-import Data.Show (class Show)
 import Data.Tuple (Tuple(Tuple), fst)
 import Data.Unit (Unit, unit)
 import Text.Parsing.Parser (ParserT, fail) as P
@@ -30,7 +29,7 @@ class Parsing m where
   withErrorMessage :: forall a. m a -> String -> m a
   unexpected :: forall a. String -> m a
   eof :: m Unit
-  notFollowedBy :: forall a. Show a => m a -> m Unit
+  notFollowedBy :: forall a. m a -> m Unit
 
 instance parsingParser :: (P.StringLike s, Monad m)
                        => Parsing (P.ParserT s m) where
@@ -62,10 +61,11 @@ instance parsingRWST :: (Parsing m, Monad m, Monoid w)
   unexpected = lift <<< unexpected
   eof = lift eof
   notFollowedBy (RWST m) = RWST \ r s -> do
-    x <- notFollowedBy $ (\(RWSResult _ a _) -> a) <$> m r s
-    pure $ RWSResult s x mempty
+    notFollowedBy $ (\(RWSResult _ a _) -> a) <$> m r s
+    pure $ RWSResult s unit mempty
 
-instance parsingStateT :: (Parsing m, Monad m) => Parsing (StateT s m) where
+instance parsingStateT :: (Parsing m, Monad m)
+                       => Parsing (StateT s m) where
   try = mapStateT try
   withErrorMessage s l = mapStateT (flip withErrorMessage l) s
   unexpected = lift <<< unexpected
@@ -81,8 +81,8 @@ instance parsingWriterT :: (Parsing m, Monad m, Monoid w)
   unexpected = lift <<< unexpected
   eof = lift eof
   notFollowedBy (WriterT m) = WriterT do
-    x <- notFollowedBy $ fst <$> m
-    pure $ Tuple x mempty
+    notFollowedBy $ fst <$> m
+    pure $ Tuple unit mempty
 
 class Parsing m <= CharParsing m where
   satisfy :: (Char -> Boolean) -> m Char
@@ -131,8 +131,7 @@ instance charParsingWriterT :: (CharParsing m, Monad m, Monoid w)
   notChar = lift <<< notChar
   anyChar = lift anyChar
 
-class Parsing m <= LookAheadParsing m where
-  lookAhead :: forall a. m a -> m a
+class Parsing m <= LookAheadParsing m where lookAhead :: forall a. m a -> m a
 
 instance lookAheadParsingParser :: (P.StringLike s, Monad m)
                                 => LookAheadParsing (P.ParserT s m) where
