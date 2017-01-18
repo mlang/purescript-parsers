@@ -7,6 +7,7 @@ import Control.Monad.Reader.Trans (ReaderT(ReaderT), mapReaderT)
 import Control.Monad.RWS.Trans (RWST(RWST), RWSResult(RWSResult), mapRWST)
 import Control.Monad.State.Trans (StateT(StateT), mapStateT)
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.Writer.Trans (WriterT(WriterT), mapWriterT)
 import Data.Eq ((/=))
 import Data.Function
 import Data.Functor ((<$>))
@@ -55,6 +56,15 @@ instance parsingStateT :: (Parsing m, Monad m) => Parsing (StateT s m) where
     notFollowedBy $ fst <$> m s
     pure $ Tuple unit s
  
+instance parsingWriterT :: (Parsing m, Monad m, Monoid w)
+                        => Parsing (WriterT w m) where
+  try = mapWriterT try
+  withErrorMessage (WriterT m) l = WriterT $ withErrorMessage m l
+  eof = lift eof
+  notFollowedBy (WriterT m) = WriterT do
+    x <- notFollowedBy $ fst <$> m
+    pure $ Tuple x mempty
+
 class Parsing m <= CharParsing m where
   satisfy :: (Char -> Boolean) -> m Char
   char :: Char -> m Char
@@ -89,10 +99,18 @@ instance charParsingStateT :: (CharParsing m, Monad m)
   notChar = lift <<< notChar
   anyChar = lift anyChar
 
+instance charParsingWriterT :: (CharParsing m, Monad m, Monoid w)
+                            => CharParsing (WriterT w m) where
+  satisfy = lift <<< satisfy
+  char = lift <<< char
+  notChar = lift <<< notChar
+  anyChar = lift anyChar
+
 class Parsing m <= LookAheadParsing m where
   lookAhead :: forall a. m a -> m a
 
-instance lookAheadParsingParser :: (P.StringLike s, Monad m) => LookAheadParsing (P.ParserT s m) where
+instance lookAheadParsingParser :: (P.StringLike s, Monad m)
+                                => LookAheadParsing (P.ParserT s m) where
   lookAhead = P.lookAhead
 
 instance lookAheadParsingReaderT :: (LookAheadParsing m, Monad m)
@@ -106,3 +124,7 @@ instance lookAheadParsingRWST :: (LookAheadParsing m, Monad m, Monoid w)
 instance lookAheadParsingStateT :: (LookAheadParsing m, Monad m)
                                  => LookAheadParsing (StateT e m) where
   lookAhead = mapStateT lookAhead
+
+instance lookAheadParsingWriterT :: (LookAheadParsing m, Monad m, Monoid w)
+                                 => LookAheadParsing (WriterT w m) where
+  lookAhead = mapWriterT lookAhead
