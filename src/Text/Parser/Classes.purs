@@ -31,6 +31,8 @@ class Parsing m where
   eof :: m Unit
   notFollowedBy :: forall a. m a -> m Unit
 
+infix 3 withErrorMessage as <?>
+
 instance parsingParser :: (P.StringLike s, Monad m)
                        => Parsing (P.ParserT s m) where
   try = P.try
