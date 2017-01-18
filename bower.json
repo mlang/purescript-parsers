@@ -1,5 +1,15 @@
 {
   "name": "purescript-parsers",
+  "homepage": "https://github.com/mlang/purescript-parsers",
+  "description": "PureScript typeclasses for parsing",
+  "authors": [
+    "Mario Lang <mlang@blind.guru>"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mlang/purescript-parsers.git"
+  },
   "ignore": [
     "**/.*",
     "node_modules",
