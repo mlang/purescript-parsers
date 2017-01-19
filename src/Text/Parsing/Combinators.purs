@@ -1,6 +1,5 @@
 module Text.Parsing.Combinators (
-  between, chainr, chainr1, either, oneOf, option, optional, optionMaybe,
-  module Text.Parsing.Combinators.List
+  between, chainr, chainr1, either, oneOf, option, optional, optionMaybe
 ) where
 
 import Control.Alt (class Alt, (<|>))
@@ -15,7 +14,6 @@ import Data.Function (($))
 import Data.Functor (class Functor, void, (<$>))
 import Data.Maybe (Maybe(Just, Nothing))
 import Data.Unit (Unit, unit)
-import Text.Parsing.Combinators.List (many, sepBy, sepBy1, some)
 
 between :: forall f open close a. Apply f => f open -> f close -> f a -> f a
 between open close p = open *> p <* close
@@ -29,7 +27,7 @@ chainr p f a = chainr1 p f <|> pure a
 -- | requiring at least one match.
 chainr1 :: forall f a. (Alt f, Applicative f, Bind f)
         => f a -> f (a -> a -> a) -> f a
-chainr1 p f = p >>= go where go a = ((_ $ a) <$> f <*> chainr1 p f) <|> pure a
+chainr1 p f = p >>= \ a -> (_ $ a) <$> f <*> chainr1 p f <|> pure a
 
 either :: forall f a b. (Alt f, Functor f)
        => f a -> f b -> f (Either a b)
