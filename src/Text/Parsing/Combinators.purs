@@ -1,18 +1,17 @@
 module Text.Parsing.Combinators (
-  between, either, option, optional, optionMaybe, sepBy, sepBy1
+  between, either, option, optional, optionMaybe,
+  module Text.Parsing.Combinators.List
 ) where
 
 import Control.Alt (class Alt, (<|>))
-import Control.Alternative (class Alternative)
 import Control.Applicative (class Applicative, pure)
-import Control.Apply (class Apply, (<*), (<*>), (*>))
-import Control.Lazy (class Lazy)
+import Control.Apply (class Apply, (<*), (*>))
 import Data.Either (Either(Left, Right))
 import Data.Function (($))
 import Data.Functor (class Functor, void, (<$>))
-import Data.List (List(Nil), many, some, (:))
 import Data.Maybe (Maybe(Just, Nothing))
 import Data.Unit (Unit, unit)
+import Text.Parsing.Combinators.List (many, sepBy, sepBy1, some)
 
 between :: forall f open close a. Apply f => f open -> f close -> f a -> f a
 between open close p = open *> p <* close
@@ -32,11 +31,3 @@ optional p = void p <|> pure unit
 optionMaybe :: forall f a. (Alt f, Applicative f)
             => f a -> f (Maybe a)
 optionMaybe p = option Nothing $ Just <$> p
-
-sepBy :: forall f a sep. (Alternative f, Lazy (f (List a)))
-      => f a -> f sep -> f (List a)
-sepBy p sep = sepBy1 p sep <|> pure Nil
-
-sepBy1 :: forall f a sep. (Alternative f, Lazy (f (List a)))
-       => f a -> f sep -> f (List a)
-sepBy1 p sep = (:) <$> p <*> many (sep *> p)
