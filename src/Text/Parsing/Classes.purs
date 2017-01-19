@@ -1,4 +1,4 @@
-module Text.Parser.Classes where
+module Text.Parsing.Classes where
 
 import Control.Alt ((<|>))
 import Control.Applicative (pure)
