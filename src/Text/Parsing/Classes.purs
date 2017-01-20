@@ -1,6 +1,7 @@
 module Text.Parsing.Classes where
 
 import Control.Alt ((<|>))
+import Control.Alternative (class Alternative)
 import Control.Applicative (pure)
 import Control.Apply ((*>))
 import Control.Bind (bind)
@@ -24,7 +25,7 @@ import Text.Parsing.StringParser (Parser, fail, try) as SP
 import Text.Parsing.StringParser.Combinators (lookAhead, withError) as SP
 import Text.Parsing.StringParser.String (anyChar, char, eof, satisfy) as SP
 
-class Parsing m where
+class Alternative m <= Parsing m where
   try :: forall a. m a -> m a
   withErrorMessage :: forall a. m a -> String -> m a
   unexpected :: forall a. String -> m a
