@@ -22,7 +22,7 @@ chainr p f a = chainr1 p f <|> pure a
 -- | Parse phrases delimited by a right-associative operator,
 -- | requiring at least one match.
 chainr1 :: forall m a. Alternative m => m a -> m (a -> a -> a) -> m a
-chainr1 p op = (#) <$> p <*> ((flip <$> op <*> chainr1 p op) <|> pure id)
+chainr1 p op = (#) <$> p <*> option id (flip <$> op <*> chainr1 p op)
 
 either :: forall m a b. Alternative m => m a -> m b -> m (Either a b)
 either a b = Left <$> a <|> Right <$> b
