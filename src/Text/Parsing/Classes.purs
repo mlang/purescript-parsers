@@ -4,17 +4,23 @@ import Control.Alt ((<|>))
 import Control.Alternative (class Alternative)
 import Control.Applicative (pure)
 import Control.Apply ((*>))
-import Control.Bind (bind)
+import Control.Bind (bind, (>>=))
 import Control.Monad (class Monad)
+import Control.Monad.Except.Trans (ExceptT, mapExceptT, runExceptT)
+import Control.Monad.Maybe.Trans (MaybeT, mapMaybeT, runMaybeT)
 import Control.Monad.Reader.Trans (ReaderT, mapReaderT)
-import Control.Monad.RWS.Trans (RWST(RWST), RWSResult(RWSResult), mapRWST)
-import Control.Monad.State.Trans (StateT(StateT), mapStateT)
+import Control.Monad.RWS.Trans (RWST(), RWSResult(RWSResult), mapRWST, runRWST)
+import Control.Monad.State.Trans (StateT, mapStateT, runStateT)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Writer.Trans (WriterT(WriterT), mapWriterT)
+import Control.Monad.Writer.Trans (WriterT, mapWriterT, runWriterT)
+import Control.Plus (empty)
+import Data.Either (either)
 import Data.Eq ((/=))
 import Data.Function
 import Data.Functor ((<$>))
+import Data.Maybe (maybe)
 import Data.Monoid (class Monoid, mempty)
+import Data.Newtype (wrap)
 import Data.Semigroup ((<>))
 import Data.Tuple (Tuple(Tuple), fst)
 import Data.Unit (Unit, unit)
@@ -32,7 +38,11 @@ class Alternative m <= Parsing m where
   eof :: m Unit
   notFollowedBy :: forall a. m a -> m Unit
 
+asErrorMessage :: forall m a. Parsing m => String -> m a -> m a
+asErrorMessage = flip withErrorMessage
+
 infix 3 withErrorMessage as <?>
+infix 3 asErrorMessage as <??>
 
 instance parsingParser :: (P.StringLike s, Monad m)
                        => Parsing (P.ParserT s m) where
@@ -49,6 +59,24 @@ instance parsingStringParser :: Parsing SP.Parser where
   eof = SP.eof
   notFollowedBy p = p *> SP.fail "Negated parser succeded" <|> pure unit
 
+instance parsingExceptT :: (Monoid e, Monad m, Parsing m) => Parsing (ExceptT e m) where
+  try = mapExceptT try
+  withErrorMessage r l = mapExceptT (asErrorMessage l) r
+  unexpected = lift <<< unexpected
+  eof = lift eof
+  notFollowedBy m = wrap do
+    u <- notFollowedBy $ runExceptT m >>= either (const empty) pure
+    pure $ pure u
+
+instance parsingMaybeT :: (Monad m, Parsing m) => Parsing (MaybeT m) where
+  try = mapMaybeT try
+  withErrorMessage r l = mapMaybeT (asErrorMessage l) r
+  unexpected = lift <<< unexpected
+  eof = lift eof
+  notFollowedBy m = wrap do
+    u <- notFollowedBy $ runMaybeT m >>= maybe empty pure
+    pure $ pure u
+
 instance parsingReaderT :: (Parsing m, Monad m)
                         => Parsing (ReaderT e m) where
   try = mapReaderT try
@@ -60,12 +88,12 @@ instance parsingReaderT :: (Parsing m, Monad m)
 instance parsingRWST :: (Parsing m, Monad m, Monoid w)
                      => Parsing (RWST r w s m) where
   try = mapRWST try
-  withErrorMessage r l = mapRWST (flip withErrorMessage l) r
+  withErrorMessage r l = mapRWST (asErrorMessage l) r
   unexpected = lift <<< unexpected
   eof = lift eof
-  notFollowedBy (RWST m) = RWST \ r s -> do
-    notFollowedBy $ (\(RWSResult _ a _) -> a) <$> m r s
-    pure $ RWSResult s unit mempty
+  notFollowedBy m = wrap \ r s -> do
+    u <- notFollowedBy $ (\(RWSResult _ a _) -> a) <$> runRWST m r s
+    pure $ RWSResult s u mempty
 
 instance parsingStateT :: (Parsing m, Monad m)
                        => Parsing (StateT s m) where
@@ -73,19 +101,19 @@ instance parsingStateT :: (Parsing m, Monad m)
   withErrorMessage s l = mapStateT (flip withErrorMessage l) s
   unexpected = lift <<< unexpected
   eof = lift eof
-  notFollowedBy (StateT m) = StateT \ s -> do
-    notFollowedBy $ fst <$> m s
-    pure $ Tuple unit s
+  notFollowedBy m = wrap \ s -> do
+    u <- notFollowedBy $ fst <$> runStateT m s
+    pure $ Tuple u s
  
 instance parsingWriterT :: (Parsing m, Monad m, Monoid w)
                         => Parsing (WriterT w m) where
   try = mapWriterT try
-  withErrorMessage w l = mapWriterT (flip withErrorMessage l) w
+  withErrorMessage m msg = mapWriterT (asErrorMessage msg) m
   unexpected = lift <<< unexpected
   eof = lift eof
-  notFollowedBy (WriterT m) = WriterT do
-    notFollowedBy $ fst <$> m
-    pure $ Tuple unit mempty
+  notFollowedBy m = wrap do
+    u <- notFollowedBy $ fst <$> runWriterT m
+    pure $ Tuple u mempty
 
 class Parsing m <= CharParsing m where
   satisfy :: (Char -> Boolean) -> m Char
@@ -105,6 +133,20 @@ instance charParsingStringParser :: CharParsing SP.Parser where
   char = SP.char
   notChar c = satisfy (c /= _)
   anyChar = SP.anyChar
+
+instance charParsingExceptT :: (Monoid e, CharParsing m, Monad m)
+                            => CharParsing (ExceptT e m) where
+  satisfy = lift <<< satisfy
+  char = lift <<< char
+  notChar = lift <<< notChar
+  anyChar = lift anyChar
+
+instance charParsingMaybeT :: (CharParsing m, Monad m)
+                           => CharParsing (MaybeT m) where
+  satisfy = lift <<< satisfy
+  char = lift <<< char
+  notChar = lift <<< notChar
+  anyChar = lift anyChar
 
 instance charParsingReaderT :: (CharParsing m, Monad m)
                             => CharParsing (ReaderT e m) where
@@ -142,6 +184,14 @@ instance lookAheadParsingParser :: (P.StringLike s, Monad m)
 
 instance lookAheadParsingStringParser :: LookAheadParsing SP.Parser where
   lookAhead = SP.lookAhead
+
+instance lookAheadParsingEitherT :: (Monoid e, LookAheadParsing m, Monad m)
+                                 => LookAheadParsing (ExceptT e m) where
+  lookAhead = mapExceptT lookAhead
+
+instance lookAheadParsingMaybeT :: (LookAheadParsing m, Monad m)
+                                => LookAheadParsing (MaybeT m) where
+  lookAhead = mapMaybeT lookAhead
 
 instance lookAheadParsingReaderT :: (LookAheadParsing m, Monad m)
                                  => LookAheadParsing (ReaderT e m) where
