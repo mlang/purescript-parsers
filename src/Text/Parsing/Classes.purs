@@ -64,7 +64,7 @@ instance parsingExceptT :: (Monoid e, Monad m, Parsing m) => Parsing (ExceptT e 
   withErrorMessage r l = mapExceptT (asErrorMessage l) r
   unexpected = lift <<< unexpected
   eof = lift eof
-  notFollowedBy m = wrap do
+  notFollowedBy m = wrap $
     Right <$> notFollowedBy (runExceptT m >>= either (const empty) pure)
 
 instance parsingMaybeT :: (Monad m, Parsing m) => Parsing (MaybeT m) where
@@ -72,7 +72,7 @@ instance parsingMaybeT :: (Monad m, Parsing m) => Parsing (MaybeT m) where
   withErrorMessage r l = mapMaybeT (asErrorMessage l) r
   unexpected = lift <<< unexpected
   eof = lift eof
-  notFollowedBy m = wrap do
+  notFollowedBy m = wrap $
     Just <$> notFollowedBy (runMaybeT m >>= maybe empty pure)
 
 instance parsingReaderT :: (Parsing m, Monad m)
