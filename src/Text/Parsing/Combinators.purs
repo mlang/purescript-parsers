@@ -38,7 +38,7 @@ chainr1 p op = lift2 (#) p $ option id $ lift2 flip op $ chainr1 p op
 either :: forall m a b. Alternative m => m a -> m b -> m (Either a b)
 either a b = Left <$> a <|> Right <$> b
 
-oneOf :: forall f m a. (Foldable f, Alternative m) => f (m a) -> m a
+oneOf :: forall f m a. Foldable f => Alternative m => f (m a) -> m a
 oneOf = Foldable.oneOf
 
 option :: forall m a. Alternative m => a -> m a -> m a
